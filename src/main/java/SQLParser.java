@@ -51,6 +51,9 @@ public class SQLParser {
 			case "left":
 				joinTables.add(new Table(tableName, Table.Type.LEFT_JOIN, condition));
 				break;
+			case "right":
+				joinTables.add(new Table(tableName, Table.Type.RIGHT_JOIN, condition));
+				break;
 			case "inner":
 			default:
 				joinTables.add(new Table(tableName, Table.Type.INNER_JOIN, condition));
@@ -69,6 +72,8 @@ public class SQLParser {
 				joinedTable = leftJoin(mainTable, joinTable);
 			} else if (joinTable.getType().equals(Table.Type.INNER_JOIN)) {
 				joinedTable = innerJoin(mainTable, joinTable);
+			} else if (joinTable.getType().equals(Table.Type.RIGHT_JOIN)) {
+				joinedTable = rightJoin(mainTable, joinTable);
 			}
 		}
 		resultSet.addAll(joinedTable.getRows());
@@ -97,11 +102,12 @@ public class SQLParser {
 				joinTableColumnIndex = joinTable.getFieldNames().indexOf(value.getFieldName());
 			}
 		}
-		
+
 		for (Row outterRecord : mainTable.getRows()) {
 			boolean find = false;
 			for (Row innerRecord : joinTable.getRows()) {
-				if (outterRecord.getColumns().get(mainTableColumnIndex).equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
+				if (outterRecord.getColumns().get(mainTableColumnIndex)
+						.equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
 					outterRecord.addAll(innerRecord.getColumns());
 					find = true;
 					break;
@@ -120,12 +126,61 @@ public class SQLParser {
 		return table;
 	}
 
+	private Table rightJoin(Table mainTable, Table joinTable) {
+		Table table = new Table(Table.Type.RIGHT_JOIN);
+		List<Row> rows = table.getRows();
+		table.getFieldNames().addAll(mainTable.getFieldNames());
+		table.getFieldNames().addAll(joinTable.getFieldNames());
+
+		int mainTableColumnIndex = -1;
+		int joinTableColumnIndex = -1;
+		Condition joinCondition = joinTable.getJoinCondition();
+		Value leftValue = joinCondition.getLeftValue();
+		Value rightValue = joinCondition.getRightValue();
+		List<Value> values = new ArrayList<>();
+		values.add(leftValue);
+		values.add(rightValue);
+		for (Value value : values) {
+			if (mainTable.getName().equals(value.getTableName())) {
+				mainTableColumnIndex = mainTable.getFieldNames().indexOf(value.getFieldName());
+			}
+			if (joinTable.getName().equals(value.getTableName())) {
+				joinTableColumnIndex = joinTable.getFieldNames().indexOf(value.getFieldName());
+			}
+		}
+
+		for (Row outterRecord : joinTable.getRows()) {
+			boolean find = false;
+			Row row = new Row();
+			for (Row innerRecord : mainTable.getRows()) {
+				if (outterRecord.getColumns().get(mainTableColumnIndex)
+						.equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
+					row.addAll(innerRecord.getColumns());
+					row.addAll(outterRecord.getColumns());
+					find = true;
+					break;
+				}
+			}
+			if (!find) {
+				List<Column> nullList = new ArrayList<Column>();
+				for (int i = 0; i < joinTable.getFieldCount(); i++) {
+					nullList.add(null);
+				}
+				row.addAll(nullList);
+				row.addAll(outterRecord.getColumns());
+			}
+			rows.add(row);
+		}
+
+		return table;
+	}
+
 	private Table innerJoin(Table mainTable, Table joinTable) {
 		Table table = new Table(Table.Type.INNER_JOIN);
 		List<Row> rows = table.getRows();
 		table.getFieldNames().addAll(mainTable.getFieldNames());
 		table.getFieldNames().addAll(joinTable.getFieldNames());
-		
+
 		int mainTableColumnIndex = -1;
 		int joinTableColumnIndex = -1;
 		Condition joinCondition = joinTable.getJoinCondition();
@@ -145,7 +200,8 @@ public class SQLParser {
 
 		for (Row outterRecord : mainTable.getRows()) {
 			for (Row innerRecord : joinTable.getRows()) {
-				if (outterRecord.getColumns().get(mainTableColumnIndex).equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
+				if (outterRecord.getColumns().get(mainTableColumnIndex)
+						.equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
 					outterRecord.addAll(innerRecord.getColumns());
 					rows.add(outterRecord);
 					break;
