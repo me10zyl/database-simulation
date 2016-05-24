@@ -4,15 +4,17 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import model.Column;
+import model.Row;
+import model.Table;
+
 public class SQLParser {
-	private String mainTable;
-	private List<String> leftJoinTables;
-	private List<String> innerJoinTables;
-	
+	private Table mainTable;
+	private List<Table> joinTables;
+
 	public void init() {
-		mainTable = null;
-		leftJoinTables = new ArrayList<String>();
-		innerJoinTables = new ArrayList<String>();
+		mainTable = new Table(Table.Type.MAIN);
+		joinTables = new ArrayList<Table>();
 	}
 
 	public ResultSet executeQuery(String sql) throws IOException {
@@ -20,116 +22,87 @@ public class SQLParser {
 		sql = sql.trim();
 		sql = sql.toLowerCase();
 		ResultSet rs = new ResultSet();
-		rs.setResultSet(new ArrayList<List<Object>>());
-		List<List<Object>> resultSet = rs.getResultSet();
+		rs.setResultSet(new ArrayList<Row>());
+		List<Row> resultSet = rs.getResultSet();
 		Pattern mainTablePattern = Pattern.compile("from (\\w+)");
 		Pattern joinTablePattern = Pattern.compile("(\\w+) join (\\w+)");
 		Pattern onPattern = Pattern.compile("on (\\w+)\\.(\\w+)\\s*=\\s*(\\w+)\\.(\\w+)");
 		Matcher mainTableMatcher = mainTablePattern.matcher(sql);
 		Matcher joinTableMatcher = joinTablePattern.matcher(sql);
 		if (mainTableMatcher.find()) {
-			mainTable = mainTableMatcher.group(1);
+			String mainTableName = mainTableMatcher.group(1);
+			mainTable.setName(mainTableName);
 		}
 		while (joinTableMatcher.find()) {
 			String operator = joinTableMatcher.group(1);
 			String tableName = joinTableMatcher.group(2);
 			switch (operator) {
 			case "left":
-				leftJoinTables.add(tableName);
+				joinTables.add(new Table(tableName, Table.Type.LEFT_JOIN));
 				break;
 			case "inner":
 			default:
-				innerJoinTables.add(tableName);
+				joinTables.add(new Table(tableName, Table.Type.INNER_JOIN));
 				break;
 			}
 		}
-
-		DBReader mainTableReader = new DBReader(mainTable);
-		List<DBReader> leftJoinTableReaders = new ArrayList<DBReader>();
-		List<DBReader> innerJoinTableReaders = new ArrayList<DBReader>();
-
-		for (String joinTable : leftJoinTables) {
-			leftJoinTableReaders.add(new DBReader(joinTable));
+		// read table data
+		new DBReader(mainTable.getName()).readTable(mainTable);
+		for (Table joinTable : joinTables) {
+			new DBReader(joinTable.getName()).readTable(joinTable);
 		}
-		for (String joinTable : innerJoinTables) {
-			innerJoinTableReaders.add(new DBReader(joinTable));
+		// join operation
+		Table joinedTable = mainTable;
+		for (Table joinTable : joinTables) {
+			if (joinTable.getType().equals(Table.Type.LEFT_JOIN)) {
+				joinedTable = leftJoin(mainTable, joinTable);
+			} else if (joinTable.getType().equals(Table.Type.INNER_JOIN)) {
+				joinedTable = innerJoin(mainTable, joinTable);
+			}
 		}
-
-		List<List<Object>> mainTableResultSet = mainTableReader.getRecords();
-		List<List<List<Object>>> leftJoinTablesResultSets = new ArrayList<List<List<Object>>>();
-		List<List<List<Object>>> innerJoinTablesResultSets = new ArrayList<List<List<Object>>>();
-
-		for (DBReader joinTableReader : leftJoinTableReaders) {
-			List<List<Object>> records = joinTableReader.getRecords();
-			leftJoinTablesResultSets.add(records);
-		}
-
-		for (DBReader joinTableReader : innerJoinTableReaders) {
-			List<List<Object>> records = joinTableReader.getRecords();
-			innerJoinTablesResultSets.add(records);
-		}
-		//join operation
-		List<List<Object>> leftJoinTableResultSet = null;
-		List<List<Object>> innerJoinTablesResultSet = null;
-		if (leftJoinTablesResultSets.size() > 0) {
-			leftJoinTableResultSet = leftJoinTablesResultSets.get(0);
-		}
-		if (innerJoinTablesResultSets.size() > 0) {
-			innerJoinTablesResultSet = innerJoinTablesResultSets.get(0);
-		}
-		boolean noJoin = true;
-		if (leftJoinTableResultSet != null) {
-			List<List<Object>> leftJoinResultSet = leftJoin(mainTableResultSet, leftJoinTableResultSet);
-			resultSet.addAll(leftJoinResultSet);
-			noJoin = false;
-		}
-		if (innerJoinTablesResultSet != null) {
-			List<List<Object>> innerJoinResultSet = innerJoin(mainTableResultSet, innerJoinTablesResultSet);
-			resultSet.addAll(innerJoinResultSet);
-			noJoin = false;
-		}
-		if(noJoin){
-			resultSet.addAll(mainTableResultSet);
-		}
-		// close
-		mainTableReader.close();
-		for (DBReader joinTableReader : leftJoinTableReaders) {
-			joinTableReader.close();
-		}
-		for (DBReader joinTableReader : innerJoinTableReaders) {
-			joinTableReader.close();
-		}
+		resultSet.addAll(joinedTable.getRows());
 		return rs;
 	}
 
-	private List<List<Object>> leftJoin(List<List<Object>> mainTableResultSet, List<List<Object>> joinTableResultSet) {
-		for (List<Object> outterRecord : mainTableResultSet) {
+	private Table leftJoin(Table mainTable, Table joinTable) {
+		Table table = new Table(Table.Type.LEFT_JOIN);
+		List<Row> rows = table.getRows();
+		table.getFieldNames().addAll(mainTable.getFieldNames());
+		table.getFieldNames().addAll(joinTable.getFieldNames());
+
+		for (Row outterRecord : mainTable.getRows()) {
 			boolean find = false;
-			for (List<Object> innerRecord : joinTableResultSet) {
-				if (outterRecord.get(2).equals(innerRecord.get(0))) {
-					outterRecord.addAll(innerRecord);
+			for (Row innerRecord : joinTable.getRows()) {
+				if (outterRecord.getColumns().get(2).equals(innerRecord.getColumns().get(0))) {
+					outterRecord.addAll(innerRecord.getColumns());
 					find = true;
 					break;
 				}
 			}
 			if (!find) {
-				List<Object> nullList = new ArrayList<Object>();
-				for (int i = 0; i < joinTableResultSet.get(0).size(); i++) {
+				List<Column> nullList = new ArrayList<Column>();
+				for (int i = 0; i < joinTable.getFieldCount(); i++) {
 					nullList.add(null);
 				}
 				outterRecord.addAll(nullList);
 			}
 		}
-		return mainTableResultSet;
+
+		rows.addAll(mainTable.getRows());
+		return table;
 	}
-	
-	private List<List<Object>> innerJoin(List<List<Object>> mainTableResultSet, List<List<Object>> joinTableResultSet) {
-		List<List<Object>> table = new ArrayList<List<Object>>();
-		for (List<Object> outterRecord : mainTableResultSet) {
-			for (List<Object> innerRecord : joinTableResultSet) {
-				if (outterRecord.get(2).equals(innerRecord.get(0))) {
-					outterRecord.addAll(innerRecord);
-					table.add(outterRecord);
+
+	private Table innerJoin(Table mainTable, Table joinTable) {
+		Table table = new Table(Table.Type.INNER_JOIN);
+		List<Row> rows = table.getRows();
+		table.getFieldNames().addAll(mainTable.getFieldNames());
+		table.getFieldNames().addAll(joinTable.getFieldNames());
+
+		for (Row outterRecord : mainTable.getRows()) {
+			for (Row innerRecord : joinTable.getRows()) {
+				if (outterRecord.getColumns().get(2).equals(innerRecord.getColumns().get(0))) {
+					outterRecord.addAll(innerRecord.getColumns());
+					rows.add(outterRecord);
 					break;
 				}
 			}

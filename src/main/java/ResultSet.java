@@ -1,15 +1,17 @@
 import java.util.Iterator;
 import java.util.List;
 
-public class ResultSet {
-	private List<List<Object>> resultSet;
-	private Iterator<List<Object>> iterator;
+import model.Row;
 
-	public List<List<Object>> getResultSet() {
+public class ResultSet {
+	private List<Row> resultSet;
+	private Iterator<Row> iterator;
+
+	public List<Row> getResultSet() {
 		return resultSet;
 	}
 
-	public void setResultSet(List<List<Object>> resultSet) {
+	public void setResultSet(List<Row> resultSet) {
 		this.resultSet = resultSet;
 	}
 
@@ -24,7 +26,7 @@ public class ResultSet {
 		return iterator.hasNext();
 	}
 
-	public List<Object> next() {
+	public Row next() {
 		if (iterator == null) {
 			if (resultSet != null) {
 				iterator = resultSet.iterator();

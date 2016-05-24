@@ -7,6 +7,10 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 
+import model.Column;
+import model.Row;
+import model.Table;
+
 public class DBReader {
 	private BufferedReader br;
 	public static final String PATH = "db";
@@ -26,17 +30,58 @@ public class DBReader {
 		br.close();
 	}
 	
-	public List<List<Object>> getRecords() throws IOException{
+	private List<List<Object>> getRecords() throws IOException{
 		records = new ArrayList<List<Object>>();
 		String str = null;
 		while((str = br.readLine()) != null){
 			List<Object> columns  = new ArrayList<Object>();
-			String[] split = str.split(" ");
+			String[] split = str.split("\\s+");
 			for(String column : split){
 				columns.add(column);
 			}
 			records.add(columns);
 		}
 		return records;
+	}
+	
+	public List<Row> getRows() throws IOException{
+		List<List<Object>> recordsTemp = getRecords();
+		close();
+		List<Object> colNames = recordsTemp.get(0);
+		recordsTemp = recordsTemp.subList(1, recordsTemp.size());
+		List<Row> rows = new ArrayList<Row>();
+		for(List<Object> r : recordsTemp){
+			Row row = new Row();
+			int i = 0;
+			for(Object c : r){
+				row.add(new Column(c, colNames.get(i).toString()));
+				i++;
+			}
+			rows.add(row);
+		}
+		return rows;
+	}
+	
+	public void readTable(Table table) throws IOException{
+		List<List<Object>> recordsTemp = getRecords();
+		close();
+		List<Object> colNamesObj = recordsTemp.get(0);
+		List<String> colNames = new ArrayList<>();
+		List<Row> rows = new ArrayList<>();
+		for(Object o : colNamesObj){
+			colNames.add(o.toString());
+		}
+		recordsTemp = recordsTemp.subList(1, recordsTemp.size());
+		table.setFieldNames(colNames);
+		table.setRows(rows);
+		for(List<Object> r : recordsTemp){
+			Row row = new Row();
+			int i = 0;
+			for(Object c : r){
+				row.add(new Column(c, colNames.get(i).toString()));
+				i++;
+			}
+			rows.add(row);
+		}
 	}
 }
