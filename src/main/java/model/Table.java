@@ -3,11 +3,14 @@ package model;
 import java.util.ArrayList;
 import java.util.List;
 
+import model.condition.Condition;
+
 public class Table {
 	private String name;
 	private Type type;
 	private List<Row> rows;
 	private List<String> fieldNames;
+	private Condition joinCondition;
 
 	public static enum Type {
 		MAIN, LEFT_JOIN, RIGHT_JOIN, INNER_JOIN
@@ -22,6 +25,14 @@ public class Table {
 	public Table(Type type) {
 		this();
 		this.type = type;
+	}
+
+	public Condition getJoinCondition() {
+		return joinCondition;
+	}
+
+	public void setJoinCondition(Condition joinCondition) {
+		this.joinCondition = joinCondition;
 	}
 
 	public int getFieldCount() {
@@ -40,6 +51,13 @@ public class Table {
 		this();
 		this.name = name;
 		this.type = type;
+	}
+	
+	public Table(String name, Type type, Condition joinCondition) {
+		this();
+		this.name = name;
+		this.type = type;
+		this.joinCondition = joinCondition;
 	}
 
 	public String getName() {
