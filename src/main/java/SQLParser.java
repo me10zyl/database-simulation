@@ -163,8 +163,8 @@ public class SQLParser {
 			boolean find = false;
 			Row row = new Row();
 			for (Row innerRecord : mainTable.getRows()) {
-				if (outterRecord.getColumns().get(mainTableColumnIndex)
-						.equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
+				if (outterRecord.getColumns().get(joinTableColumnIndex)
+						.equals(innerRecord.getColumns().get(mainTableColumnIndex))) {
 					row.addAll(innerRecord.getColumns());
 					row.addAll(outterRecord.getColumns());
 					find = true;
