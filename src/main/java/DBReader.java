@@ -66,8 +66,8 @@ public class DBReader {
 		List<List<Object>> recordsTemp = getRecords();
 		close();
 		List<Object> colNamesObj = recordsTemp.get(0);
-		List<String> colNames = new ArrayList<>();
-		List<Row> rows = new ArrayList<>();
+		List<String> colNames = new ArrayList<String>();
+		List<Row> rows = new ArrayList<Row>();
 		for(Object o : colNamesObj){
 			colNames.add(o.toString());
 		}

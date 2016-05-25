@@ -4,6 +4,8 @@ public class Operator {
 	public static final String EQ = "=";
 	public static final String LT = "<";
 	public static final String GT = ">";
+	public static final String GT_EQ = ">=";
+	public static final String LT_EQ = ">=";
 	private String name;
 
 	public Operator(String name) {

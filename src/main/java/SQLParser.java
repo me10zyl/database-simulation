@@ -14,10 +14,12 @@ import model.condition.Value;
 public class SQLParser {
 	private Table mainTable;
 	private List<Table> joinTables;
+	private Condition whereCondition;
 
 	public void init() {
 		mainTable = new Table(Table.Type.MAIN);
 		joinTables = new ArrayList<Table>();
+		whereCondition = null;
 	}
 
 	public ResultSet executeQuery(String sql) throws IOException {
@@ -30,9 +32,11 @@ public class SQLParser {
 		Pattern mainTablePattern = Pattern.compile("from (\\w+)");
 		Pattern joinTablePattern = Pattern.compile("(\\w+) join (\\w+)");
 		Pattern onPattern = Pattern.compile("on (\\w+)\\.(\\w+)\\s*([=])\\s*(\\w+)\\.(\\w+)");
+		Pattern wherePattern = Pattern.compile("where (\\w+)\\.(\\w+)\\s*([=])\\s*(\\w+)");
 		Matcher mainTableMatcher = mainTablePattern.matcher(sql);
 		Matcher joinTableMatcher = joinTablePattern.matcher(sql);
 		Matcher onMatcher = onPattern.matcher(sql);
+		Matcher whereMatcher = wherePattern.matcher(sql);
 		if (mainTableMatcher.find()) {
 			String mainTableName = mainTableMatcher.group(1);
 			mainTable.setName(mainTableName);
@@ -47,18 +51,21 @@ public class SQLParser {
 				Operator operator = new Operator(onMatcher.group(3));
 				condition = new Condition(leftValue, rightValue, operator);
 			}
-			switch (joinMethod) {
-			case "left":
+			if ("left".equals(joinMethod)) {
 				joinTables.add(new Table(tableName, Table.Type.LEFT_JOIN, condition));
-				break;
-			case "right":
+			} else if ("right".equals(joinMethod)) {
 				joinTables.add(new Table(tableName, Table.Type.RIGHT_JOIN, condition));
-				break;
-			case "inner":
-			default:
+			} else {
 				joinTables.add(new Table(tableName, Table.Type.INNER_JOIN, condition));
-				break;
 			}
+		}
+		if (whereMatcher.find()) {
+			Value leftValue = new Value(whereMatcher.group(1), whereMatcher.group(2));
+			Value rightValue = new Value();
+			rightValue.setLiteral(whereMatcher.group(4));
+			rightValue.setType(Value.Type.LITERAL);
+			Operator operator = new Operator(whereMatcher.group(3));
+			whereCondition = new Condition(leftValue, rightValue, operator);
 		}
 		// read table data
 		new DBReader(mainTable.getName()).readTable(mainTable);
@@ -76,6 +83,9 @@ public class SQLParser {
 				joinedTable = rightJoin(mainTable, joinTable);
 			}
 		}
+		// where opeartion
+		where(joinedTable);
+		
 		resultSet.addAll(joinedTable.getRows());
 		return rs;
 	}
@@ -91,7 +101,7 @@ public class SQLParser {
 		Condition joinCondition = joinTable.getJoinCondition();
 		Value leftValue = joinCondition.getLeftValue();
 		Value rightValue = joinCondition.getRightValue();
-		List<Value> values = new ArrayList<>();
+		List<Value> values = new ArrayList<Value>();
 		values.add(leftValue);
 		values.add(rightValue);
 		for (Value value : values) {
@@ -137,7 +147,7 @@ public class SQLParser {
 		Condition joinCondition = joinTable.getJoinCondition();
 		Value leftValue = joinCondition.getLeftValue();
 		Value rightValue = joinCondition.getRightValue();
-		List<Value> values = new ArrayList<>();
+		List<Value> values = new ArrayList<Value>();
 		values.add(leftValue);
 		values.add(rightValue);
 		for (Value value : values) {
@@ -186,7 +196,7 @@ public class SQLParser {
 		Condition joinCondition = joinTable.getJoinCondition();
 		Value leftValue = joinCondition.getLeftValue();
 		Value rightValue = joinCondition.getRightValue();
-		List<Value> values = new ArrayList<>();
+		List<Value> values = new ArrayList<Value>();
 		values.add(leftValue);
 		values.add(rightValue);
 		for (Value value : values) {
@@ -209,5 +219,28 @@ public class SQLParser {
 			}
 		}
 		return table;
+	}
+
+	private Table where(Table table) {
+		if (whereCondition != null) {
+			Value leftValue = whereCondition.getLeftValue();
+			Value rightValue = whereCondition.getRightValue();
+			Operator operator = whereCondition.getOperator();
+			int leftValueIndex = getIndexOfField(table, leftValue);
+			List<Row> deletingRows = new ArrayList<Row>();
+			for (Row row : table.getRows()) {
+				if (!row.getColumns().get(leftValueIndex).getValue().equals(rightValue.getLiteral())) {
+					deletingRows.add(row);
+				}
+			}
+			for(Row row : deletingRows){
+				table.getRows().remove(row);
+			}
+		}
+		return table;
+	}
+
+	private int getIndexOfField(Table table, Value value) {
+		return table.getFieldNames().indexOf(value.getFieldName());
 	}
 }
