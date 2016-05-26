@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -85,138 +86,133 @@ public class SQLParser {
 		}
 		// where opeartion
 		where(joinedTable);
-		
+
 		resultSet.addAll(joinedTable.getRows());
 		return rs;
 	}
 
-	private Table leftJoin(Table mainTable, Table joinTable) {
-		Table table = new Table(Table.Type.LEFT_JOIN);
+	private Table crossJoin(Table mainTable, Table joinTable) {
+		Table table = new Table();
 		List<Row> rows = table.getRows();
 		table.getFieldNames().addAll(mainTable.getFieldNames());
 		table.getFieldNames().addAll(joinTable.getFieldNames());
 
-		int mainTableColumnIndex = -1;
-		int joinTableColumnIndex = -1;
-		Condition joinCondition = joinTable.getJoinCondition();
-		Value leftValue = joinCondition.getLeftValue();
-		Value rightValue = joinCondition.getRightValue();
-		List<Value> values = new ArrayList<Value>();
-		values.add(leftValue);
-		values.add(rightValue);
-		for (Value value : values) {
-			if (mainTable.getName().equals(value.getTableName())) {
-				mainTableColumnIndex = mainTable.getFieldNames().indexOf(value.getFieldName());
-			}
-			if (joinTable.getName().equals(value.getTableName())) {
-				joinTableColumnIndex = joinTable.getFieldNames().indexOf(value.getFieldName());
+		for (Row outterRecord : mainTable.getRows()) {
+			for (Row innerRecord : joinTable.getRows()) {
+				Row cloneRow = outterRecord.clone();
+				cloneRow.getColumns().addAll(innerRecord.getColumns());
+				rows.add(cloneRow);
 			}
 		}
+		return table;
+	}
 
-		for (Row outterRecord : mainTable.getRows()) {
-			boolean find = false;
-			for (Row innerRecord : joinTable.getRows()) {
-				if (outterRecord.getColumns().get(mainTableColumnIndex)
-						.equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
-					outterRecord.addAll(innerRecord.getColumns());
-					find = true;
+	private Table leftJoin(Table mainTable, Table joinTable) {
+		Table table = crossJoin(mainTable, joinTable);
+		table.setType(Table.Type.LEFT_JOIN);
+		List<Row> rows = table.getRows();
+		List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
+		int mainTableColumnIndex = indexs.get(0);
+		int joinTableColumnIndex = indexs.get(1);
+
+		List<Row> deletingRows = new ArrayList<Row>();
+		for (Row row : rows) {
+			List<Column> columns = row.getColumns();
+			if (!columns.get(mainTableColumnIndex).equals(columns.get(joinTableColumnIndex))) {
+				deletingRows.add(row);
+			}
+		}
+		for (Row row : deletingRows) {
+			rows.remove(row);
+		}
+
+		List<Row> addingRows = new ArrayList<Row>();
+		for (Row outRow : mainTable.getRows()) {
+			boolean add = true;
+			for (Row inRow : rows) {
+				Row inRowClone = inRow.clone();
+				inRowClone.subColumns(0, mainTable.getFieldCount());
+				if (outRow.equals(inRowClone)) {
+					add = false;
 					break;
 				}
 			}
-			if (!find) {
+			if (add) {
 				List<Column> nullList = new ArrayList<Column>();
 				for (int i = 0; i < joinTable.getFieldCount(); i++) {
 					nullList.add(null);
 				}
-				outterRecord.addAll(nullList);
+				Row newRow = outRow.clone();
+				newRow.addAll(nullList);
+				addingRows.add(newRow);
 			}
 		}
-
-		rows.addAll(mainTable.getRows());
+		rows.addAll(addingRows);
 		return table;
 	}
 
 	private Table rightJoin(Table mainTable, Table joinTable) {
-		Table table = new Table(Table.Type.RIGHT_JOIN);
+		Table table = crossJoin(mainTable, joinTable);
+		table.setType(Table.Type.RIGHT_JOIN);
 		List<Row> rows = table.getRows();
-		table.getFieldNames().addAll(mainTable.getFieldNames());
-		table.getFieldNames().addAll(joinTable.getFieldNames());
+		List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
+		int mainTableColumnIndex = indexs.get(0);
+		int joinTableColumnIndex = indexs.get(1);
 
-		int mainTableColumnIndex = -1;
-		int joinTableColumnIndex = -1;
-		Condition joinCondition = joinTable.getJoinCondition();
-		Value leftValue = joinCondition.getLeftValue();
-		Value rightValue = joinCondition.getRightValue();
-		List<Value> values = new ArrayList<Value>();
-		values.add(leftValue);
-		values.add(rightValue);
-		for (Value value : values) {
-			if (mainTable.getName().equals(value.getTableName())) {
-				mainTableColumnIndex = mainTable.getFieldNames().indexOf(value.getFieldName());
-			}
-			if (joinTable.getName().equals(value.getTableName())) {
-				joinTableColumnIndex = joinTable.getFieldNames().indexOf(value.getFieldName());
+		List<Row> deletingRows = new ArrayList<Row>();
+		for (Row row : rows) {
+			List<Column> columns = row.getColumns();
+			if (!columns.get(mainTableColumnIndex).equals(columns.get(joinTableColumnIndex))) {
+				deletingRows.add(row);
 			}
 		}
-
-		for (Row outterRecord : joinTable.getRows()) {
-			boolean find = false;
-			Row row = new Row();
-			for (Row innerRecord : mainTable.getRows()) {
-				if (outterRecord.getColumns().get(joinTableColumnIndex)
-						.equals(innerRecord.getColumns().get(mainTableColumnIndex))) {
-					row.addAll(innerRecord.getColumns());
-					row.addAll(outterRecord.getColumns());
-					find = true;
+		for (Row row : deletingRows) {
+			rows.remove(row);
+		}
+		
+		List<Row> addingRows = new ArrayList<Row>();
+		for (Row outRow : joinTable.getRows()) {
+			boolean add = true;
+			for (Row inRow : rows) {
+				Row inRowClone = inRow.clone();
+				inRowClone.subColumns(inRow.getColumns().size() - joinTable.getFieldCount(), inRow.getColumns().size());
+				if (outRow.equals(inRowClone)) {
+					add = false;
 					break;
 				}
 			}
-			if (!find) {
+			if (add) {
 				List<Column> nullList = new ArrayList<Column>();
 				for (int i = 0; i < joinTable.getFieldCount(); i++) {
 					nullList.add(null);
 				}
-				row.addAll(nullList);
-				row.addAll(outterRecord.getColumns());
+				Row newRow = outRow.clone();
+				nullList.addAll(newRow.getColumns());
+				newRow.setColumns(nullList);
+				addingRows.add(newRow);
 			}
-			rows.add(row);
 		}
-
+		rows.addAll(addingRows);
 		return table;
 	}
 
 	private Table innerJoin(Table mainTable, Table joinTable) {
-		Table table = new Table(Table.Type.INNER_JOIN);
+		Table table = crossJoin(mainTable, joinTable);
+		table.setType(Table.Type.INNER_JOIN);
 		List<Row> rows = table.getRows();
-		table.getFieldNames().addAll(mainTable.getFieldNames());
-		table.getFieldNames().addAll(joinTable.getFieldNames());
+		List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
+		int mainTableColumnIndex = indexs.get(0);
+		int joinTableColumnIndex = indexs.get(1);
 
-		int mainTableColumnIndex = -1;
-		int joinTableColumnIndex = -1;
-		Condition joinCondition = joinTable.getJoinCondition();
-		Value leftValue = joinCondition.getLeftValue();
-		Value rightValue = joinCondition.getRightValue();
-		List<Value> values = new ArrayList<Value>();
-		values.add(leftValue);
-		values.add(rightValue);
-		for (Value value : values) {
-			if (mainTable.getName().equals(value.getTableName())) {
-				mainTableColumnIndex = mainTable.getFieldNames().indexOf(value.getFieldName());
-			}
-			if (joinTable.getName().equals(value.getTableName())) {
-				joinTableColumnIndex = joinTable.getFieldNames().indexOf(value.getFieldName());
+		List<Row> deletingRows = new ArrayList<Row>();
+		for (Row row : rows) {
+			List<Column> columns = row.getColumns();
+			if (!columns.get(mainTableColumnIndex).equals(columns.get(joinTableColumnIndex))) {
+				deletingRows.add(row);
 			}
 		}
-
-		for (Row outterRecord : mainTable.getRows()) {
-			for (Row innerRecord : joinTable.getRows()) {
-				if (outterRecord.getColumns().get(mainTableColumnIndex)
-						.equals(innerRecord.getColumns().get(joinTableColumnIndex))) {
-					outterRecord.addAll(innerRecord.getColumns());
-					rows.add(outterRecord);
-					break;
-				}
-			}
+		for (Row row : deletingRows) {
+			rows.remove(row);
 		}
 		return table;
 	}
@@ -233,11 +229,35 @@ public class SQLParser {
 					deletingRows.add(row);
 				}
 			}
-			for(Row row : deletingRows){
+			for (Row row : deletingRows) {
 				table.getRows().remove(row);
 			}
 		}
 		return table;
+	}
+
+	private List<Integer> getIndexsOfJoinTableField(Table crossTable, Table mainTable, Table joinTable) {
+		List<Integer> list = new ArrayList<Integer>();
+		int mainTableColumnIndex = getIndexOfField(crossTable, mainTable.getName(), joinTable.getJoinCondition());
+		int joinTableColumnIndex = getIndexOfField(joinTable, joinTable.getName(), joinTable.getJoinCondition())
+				+ mainTable.getFieldCount();
+		list.add(mainTableColumnIndex);
+		list.add(joinTableColumnIndex);
+		return list;
+	}
+
+	private int getIndexOfField(Table table, String tableName, Condition condition) {
+		Value leftValue = condition.getLeftValue();
+		Value rightValue = condition.getRightValue();
+		List<Value> values = new ArrayList<Value>();
+		values.add(leftValue);
+		values.add(rightValue);
+		for (Value value : values) {
+			if (tableName.equals(value.getTableName())) {
+				return getIndexOfField(table, value);
+			}
+		}
+		return -1;
 	}
 
 	private int getIndexOfField(Table table, Value value) {

@@ -1,4 +1,4 @@
-id name school_id
-1 ZhangTao  1
-2 ZhangZhang 1
-3 TaoTao 1
+id name school_id sex_id
+1 ZhangTao  1 1
+2 ZhangZhang 1 1
+3 TaoTao 1 1

@@ -1,6 +1,8 @@
 package model;
 
-public class Column {
+import java.io.Serializable;
+
+public class Column implements Serializable{
 	private Object value;
 	private String field;
 
