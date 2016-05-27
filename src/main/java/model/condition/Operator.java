@@ -1,6 +1,8 @@
 package model.condition;
 
-public class Operator {
+import java.io.Serializable;
+
+public class Operator implements Serializable{
 	public static final String EQ = "=";
 	public static final String LT = "<";
 	public static final String GT = ">";

@@ -78,7 +78,9 @@ public class DBReader {
 			Row row = new Row();
 			int i = 0;
 			for(Object c : r){
-				row.add(new Column(c, colNames.get(i).toString()));
+				Column column = new Column(c, colNames.get(i).toString());
+				column.setBelongTable(table);
+				row.add(column);
 				i++;
 			}
 			rows.add(row);

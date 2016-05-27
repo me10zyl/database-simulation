@@ -5,6 +5,7 @@ import java.io.Serializable;
 public class Column implements Serializable{
 	private Object value;
 	private String field;
+	private Table belongTable;
 
 	public Column() {
 	}
@@ -45,5 +46,13 @@ public class Column implements Serializable{
 	public boolean equals(Object obj) {
 		// TODO Auto-generated method stub
 		return value.equals(((Column)obj).value);
+	}
+
+	public Table getBelongTable() {
+		return belongTable;
+	}
+
+	public void setBelongTable(Table belongTable) {
+		this.belongTable = belongTable;
 	}
 }

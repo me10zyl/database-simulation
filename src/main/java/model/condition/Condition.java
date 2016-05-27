@@ -1,6 +1,8 @@
 package model.condition;
 
-public class Condition {
+import java.io.Serializable;
+
+public class Condition implements Serializable {
 	private Value leftValue;
 	private Value rightValue;
 	private Operator operator;

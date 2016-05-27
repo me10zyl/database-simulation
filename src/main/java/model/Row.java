@@ -73,6 +73,13 @@ public class Row implements Cloneable, Serializable {
 			return false;
 		}
 		for (int i = 0; i < columns.size(); i++) {
+			if( columns.get(i) ==  null && row.getColumns().get(i) == null){
+				continue;
+			}
+			if(columns.get(i) ==  null || row.getColumns().get(i) == null){
+				eq = false;
+				break;
+			}
 			if (!columns.get(i).equals(row.getColumns().get(i))) {
 				eq = false;
 				break;

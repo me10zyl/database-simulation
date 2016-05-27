@@ -1,6 +1,5 @@
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,7 +30,7 @@ public class SQLParser {
 		rs.setResultSet(new ArrayList<Row>());
 		List<Row> resultSet = rs.getResultSet();
 		Pattern mainTablePattern = Pattern.compile("from (\\w+)");
-		Pattern joinTablePattern = Pattern.compile("(\\w+) join (\\w+)");
+		Pattern joinTablePattern = Pattern.compile("(\\w*) join (\\w+)");
 		Pattern onPattern = Pattern.compile("on (\\w+)\\.(\\w+)\\s*([=])\\s*(\\w+)\\.(\\w+)");
 		Pattern wherePattern = Pattern.compile("where (\\w+)\\.(\\w+)\\s*([=])\\s*(\\w+)");
 		Matcher mainTableMatcher = mainTablePattern.matcher(sql);
@@ -77,11 +76,11 @@ public class SQLParser {
 		Table joinedTable = mainTable;
 		for (Table joinTable : joinTables) {
 			if (joinTable.getType().equals(Table.Type.LEFT_JOIN)) {
-				joinedTable = leftJoin(mainTable, joinTable);
+				joinedTable = leftJoin(joinedTable, joinTable);
 			} else if (joinTable.getType().equals(Table.Type.INNER_JOIN)) {
-				joinedTable = innerJoin(mainTable, joinTable);
+				joinedTable = innerJoin(joinedTable, joinTable);
 			} else if (joinTable.getType().equals(Table.Type.RIGHT_JOIN)) {
-				joinedTable = rightJoin(mainTable, joinTable);
+				joinedTable = rightJoin(joinedTable, joinTable);
 			}
 		}
 		// where opeartion
@@ -104,6 +103,9 @@ public class SQLParser {
 				rows.add(cloneRow);
 			}
 		}
+		
+		table.getSubTables().add(mainTable);
+		table.getSubTables().add(joinTable);
 		return table;
 	}
 
@@ -111,9 +113,8 @@ public class SQLParser {
 		Table table = crossJoin(mainTable, joinTable);
 		table.setType(Table.Type.LEFT_JOIN);
 		List<Row> rows = table.getRows();
-		List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
-		int mainTableColumnIndex = indexs.get(0);
-		int joinTableColumnIndex = indexs.get(1);
+		int mainTableColumnIndex = table.getIndexOfField(mainTable.getName(), joinTable.getJoinCondition());
+		int joinTableColumnIndex = table.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
 
 		List<Row> deletingRows = new ArrayList<Row>();
 		for (Row row : rows) {
@@ -139,7 +140,7 @@ public class SQLParser {
 			}
 			if (add) {
 				List<Column> nullList = new ArrayList<Column>();
-				for (int i = 0; i < joinTable.getFieldCount(); i++) {
+				for (int i = 0; i < table.getFieldCount() - mainTable.getFieldCount(); i++) {
 					nullList.add(null);
 				}
 				Row newRow = outRow.clone();
@@ -155,9 +156,8 @@ public class SQLParser {
 		Table table = crossJoin(mainTable, joinTable);
 		table.setType(Table.Type.RIGHT_JOIN);
 		List<Row> rows = table.getRows();
-		List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
-		int mainTableColumnIndex = indexs.get(0);
-		int joinTableColumnIndex = indexs.get(1);
+		int mainTableColumnIndex = table.getIndexOfField(mainTable.getName(), joinTable.getJoinCondition());
+		int joinTableColumnIndex = table.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
 
 		List<Row> deletingRows = new ArrayList<Row>();
 		for (Row row : rows) {
@@ -169,7 +169,7 @@ public class SQLParser {
 		for (Row row : deletingRows) {
 			rows.remove(row);
 		}
-		
+
 		List<Row> addingRows = new ArrayList<Row>();
 		for (Row outRow : joinTable.getRows()) {
 			boolean add = true;
@@ -183,7 +183,7 @@ public class SQLParser {
 			}
 			if (add) {
 				List<Column> nullList = new ArrayList<Column>();
-				for (int i = 0; i < joinTable.getFieldCount(); i++) {
+				for (int i = 0; i < table.getFieldCount() - joinTable.getFieldCount(); i++) {
 					nullList.add(null);
 				}
 				Row newRow = outRow.clone();
@@ -199,33 +199,34 @@ public class SQLParser {
 	private Table innerJoin(Table mainTable, Table joinTable) {
 		Table table = crossJoin(mainTable, joinTable);
 		table.setType(Table.Type.INNER_JOIN);
-		List<Row> rows = table.getRows();
-		List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
-		int mainTableColumnIndex = indexs.get(0);
-		int joinTableColumnIndex = indexs.get(1);
+		if (joinTable.getJoinCondition() != null) {
+			List<Row> rows = table.getRows();
+			//List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
+			int mainTableColumnIndex = table.getIndexOfField(mainTable.getName(), joinTable.getJoinCondition());
+			int joinTableColumnIndex = table.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
 
-		List<Row> deletingRows = new ArrayList<Row>();
-		for (Row row : rows) {
-			List<Column> columns = row.getColumns();
-			if (!columns.get(mainTableColumnIndex).equals(columns.get(joinTableColumnIndex))) {
-				deletingRows.add(row);
+			List<Row> deletingRows = new ArrayList<Row>();
+			for (Row row : rows) {
+				List<Column> columns = row.getColumns();
+				if (!columns.get(mainTableColumnIndex).equals(columns.get(joinTableColumnIndex))) {
+					deletingRows.add(row);
+				}
 			}
-		}
-		for (Row row : deletingRows) {
-			rows.remove(row);
+			for (Row row : deletingRows) {
+				rows.remove(row);
+			}
 		}
 		return table;
 	}
 
 	private Table where(Table table) {
 		if (whereCondition != null) {
-			Value leftValue = whereCondition.getLeftValue();
 			Value rightValue = whereCondition.getRightValue();
-			Operator operator = whereCondition.getOperator();
-			int leftValueIndex = getIndexOfField(table, leftValue);
+			int leftValueIndex = table.getIndexOfField(whereCondition.getLeftValue().getTableName(), whereCondition);
 			List<Row> deletingRows = new ArrayList<Row>();
 			for (Row row : table.getRows()) {
-				if (!row.getColumns().get(leftValueIndex).getValue().equals(rightValue.getLiteral())) {
+				Column column = row.getColumns().get(leftValueIndex);
+				if (column == null || !rightValue.getLiteral().equals(column.getValue())) {
 					deletingRows.add(row);
 				}
 			}
@@ -234,33 +235,5 @@ public class SQLParser {
 			}
 		}
 		return table;
-	}
-
-	private List<Integer> getIndexsOfJoinTableField(Table crossTable, Table mainTable, Table joinTable) {
-		List<Integer> list = new ArrayList<Integer>();
-		int mainTableColumnIndex = getIndexOfField(crossTable, mainTable.getName(), joinTable.getJoinCondition());
-		int joinTableColumnIndex = getIndexOfField(joinTable, joinTable.getName(), joinTable.getJoinCondition())
-				+ mainTable.getFieldCount();
-		list.add(mainTableColumnIndex);
-		list.add(joinTableColumnIndex);
-		return list;
-	}
-
-	private int getIndexOfField(Table table, String tableName, Condition condition) {
-		Value leftValue = condition.getLeftValue();
-		Value rightValue = condition.getRightValue();
-		List<Value> values = new ArrayList<Value>();
-		values.add(leftValue);
-		values.add(rightValue);
-		for (Value value : values) {
-			if (tableName.equals(value.getTableName())) {
-				return getIndexOfField(table, value);
-			}
-		}
-		return -1;
-	}
-
-	private int getIndexOfField(Table table, Value value) {
-		return table.getFieldNames().indexOf(value.getFieldName());
 	}
 }

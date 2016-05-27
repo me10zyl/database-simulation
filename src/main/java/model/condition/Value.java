@@ -1,6 +1,8 @@
 package model.condition;
 
-public class Value {
+import java.io.Serializable;
+
+public class Value implements Serializable{
 	private String tableName;
 	private String fieldName;
 	private String literal;
