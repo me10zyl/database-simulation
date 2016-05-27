@@ -101,6 +101,28 @@ public class Table implements Serializable {
 	public void setSubTables(List<Table> subTables) {
 		this.subTables = subTables;
 	}
+	
+	public int getMainTableIndexOfField(Table crossTable , Table mainTable , Table joinTable){
+		String mainTableName = mainTable.getName();
+		if(mainTable.getName() == null){
+			Value leftValue = joinTable.getJoinCondition().getLeftValue();
+			Value rightValue = joinTable.getJoinCondition().getRightValue();
+			List<Value> values = new ArrayList<Value>();
+			values.add(leftValue);
+			values.add(rightValue);
+			for(Value value : values){
+				if(!value.getTableName().equals(joinTable.getName())){
+					mainTableName = value.getTableName();
+					break;
+				}
+			}
+		}
+		return crossTable.getIndexOfField(mainTableName, joinTable.getJoinCondition());
+	}
+	
+	public int getJoinTableIndexOfFiled(Table crossTable, Table joinTable){
+		return crossTable.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
+	}
 
 	public int getIndexOfField(String tableName, Condition condition) {
 		if (this.getRows().size() <= 0) {

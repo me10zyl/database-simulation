@@ -113,8 +113,8 @@ public class SQLParser {
 		Table table = crossJoin(mainTable, joinTable);
 		table.setType(Table.Type.LEFT_JOIN);
 		List<Row> rows = table.getRows();
-		int mainTableColumnIndex = table.getIndexOfField(mainTable.getName(), joinTable.getJoinCondition());
-		int joinTableColumnIndex = table.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
+		int joinTableColumnIndex = table.getJoinTableIndexOfFiled(table, joinTable);
+		int mainTableColumnIndex = table.getMainTableIndexOfField(table, mainTable, joinTable);
 
 		List<Row> deletingRows = new ArrayList<Row>();
 		for (Row row : rows) {
@@ -156,9 +156,9 @@ public class SQLParser {
 		Table table = crossJoin(mainTable, joinTable);
 		table.setType(Table.Type.RIGHT_JOIN);
 		List<Row> rows = table.getRows();
-		int mainTableColumnIndex = table.getIndexOfField(mainTable.getName(), joinTable.getJoinCondition());
-		int joinTableColumnIndex = table.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
-
+		int joinTableColumnIndex = table.getJoinTableIndexOfFiled(table, joinTable);
+		int mainTableColumnIndex = table.getMainTableIndexOfField(table, mainTable, joinTable);
+		
 		List<Row> deletingRows = new ArrayList<Row>();
 		for (Row row : rows) {
 			List<Column> columns = row.getColumns();
@@ -201,9 +201,8 @@ public class SQLParser {
 		table.setType(Table.Type.INNER_JOIN);
 		if (joinTable.getJoinCondition() != null) {
 			List<Row> rows = table.getRows();
-			//List<Integer> indexs = getIndexsOfJoinTableField(table, mainTable, joinTable);
-			int mainTableColumnIndex = table.getIndexOfField(mainTable.getName(), joinTable.getJoinCondition());
-			int joinTableColumnIndex = table.getIndexOfField(joinTable.getName(), joinTable.getJoinCondition());
+			int joinTableColumnIndex = table.getJoinTableIndexOfFiled(table, joinTable);
+			int mainTableColumnIndex = table.getMainTableIndexOfField(table, mainTable, joinTable);
 
 			List<Row> deletingRows = new ArrayList<Row>();
 			for (Row row : rows) {
